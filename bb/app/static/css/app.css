@@ -1568,3 +1568,7 @@ td .switch { vertical-align: middle; }
 .pairing-mode dl { margin: 0; font-size: 12px; }
 .pairing-mode dt { font-weight: 600; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; font-size: 10.5px; margin-top: 6px; }
 .pairing-mode dd { margin: 2px 0 0; }
+
+/* Terminals: group header rows */
+.group-row td { background: var(--surface-2, rgba(127,127,127,.08)); font-weight: 600; font-size: 12px; letter-spacing: .02em; padding: 8px 12px; }
+.group-row .muted { font-weight: 400; margin-left: 6px; }

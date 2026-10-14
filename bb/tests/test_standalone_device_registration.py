@@ -157,6 +157,7 @@ def test_connect_records_the_device_and_pushes_it_to_odoo(client, monkeypatch):
         "serial": "OIN7010066122100033", "name": "Front door",
         "location": "Main entrance", "terminal_model": "uFace202/ID",
         "ip_address": "10.0.11.43",
+    "company_id": None,
     }]
 
 

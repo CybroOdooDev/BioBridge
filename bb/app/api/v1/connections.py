@@ -62,8 +62,10 @@ from app.services.company_scope import (
     MULTI_COMPANY_PROVISION_MESSAGE,
     is_multi_company,
     tenant_is_multi_company,
+    terminal_company_id,
 )
 from app.services.device_limits import over_limit_device_ids
+from app.services.device_links import terminal_may_register_in_odoo
 from app.services.provisioning import provision_unmapped
 from app.services.roster_import import auto_import
 from app.services.sync_engine import SyncEngine
@@ -915,6 +917,8 @@ def _push_devices_to_odoo(
 
     failures: list[str] = []
     for device in devices:
+        if not terminal_may_register_in_odoo(db, device):
+            continue
         try:
             odoo.upsert_device(
                 device.serial_number,
@@ -922,6 +926,7 @@ def _push_devices_to_odoo(
                 location=device.area,
                 terminal_model=device.model,
                 ip_address=device.ip_address,
+                company_id=terminal_company_id(db, device),
             )
         except OdooError as exc:
             log.warning(
@@ -1311,6 +1316,9 @@ def update_device(
               f"{device.alias or device.serial_number} -> {data['company_id']}", request)
     db.commit()
     db.refresh(device)
+    if "company_id" in data:
+        # Reach Odoo now, not on the next punch.
+        _push_devices_to_odoo(db, principal, [device])
     _set_matched_counts(db, principal.tenant.id, [device])
     return device
 
@@ -1337,4 +1345,6 @@ def set_source_company(
     audit(db, principal, "source.company", source.id, str(payload.company_id), request)
     db.commit()
     db.refresh(source)
+    _push_devices_to_odoo(db, principal, list(db.scalars(
+        select(Device).where(Device.source_id == source.id, Device.company_id.is_(None)))))
     return source

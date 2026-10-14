@@ -48,6 +48,7 @@ from app.models import (
     SyncStatus,
     Tenant,
 )
+from app.services.device_links import terminal_may_register_in_odoo
 from app.services.company_scope import (
     MULTI_COMPANY_PROVISION_MESSAGE,
     enabled_company_ids,
@@ -141,9 +142,13 @@ class SyncEngine:
         self._source_cache: dict[str, DeviceSource | None] = {}
 
     # -- logging -----------------------------------------------------------
-    def _log(self, message: str, level: str = "info") -> None:
+    def _log(self, message: str, level: str = "info", *, ui: bool = True) -> None:
+        """Write a log line. ``ui=False`` keeps it in the server log only:
+        device records, company isolation and provisioning are housekeeping,
+        and the run log customers read is about attendance."""
         stamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        self._log_lines.append(f"[{stamp}] {level.upper()}: {message}")
+        if ui:
+            self._log_lines.append(f"[{stamp}] {level.upper()}: {message}")
         getattr(log, level, log.info)("[tenant=%s] %s", self.tenant.slug, message)
 
     def pairing_config(self, mode: str | None = None) -> PairingConfig:
@@ -276,7 +281,8 @@ class SyncEngine:
             # its held punches in this same cycle.
             if is_multi_company(odoo):
                 for note in infer_device_companies(self.db, self.tenant):
-                    self._log(note, "info")
+                    self._log(note, "info", ui=False)
+            self._sync_odoo_devices(odoo, odoo_conn)
             self._push(odoo, odoo_conn)
 
             self.tenant.consecutive_failures = 0
@@ -340,7 +346,7 @@ class SyncEngine:
 
         # A terminal deleted by hand but still holding punches comes back.
         for restored in restore_terminals_from_punches(self.db, self.tenant, source):
-            self._log(f"Restored terminal {restored.serial_number} — it has {restored.punch_count} punch(es) on record")
+            self._log(f"Restored terminal {restored.serial_number} — it has {restored.punch_count} punch(es) on record", ui=False)
         devices = {
             d.serial_number: d
             for d in self.db.scalars(
@@ -585,13 +591,13 @@ class SyncEngine:
         if is_multi_company(odoo):
             # Which company's people belong on which terminal is not known, so
             # none are created on any of them.
-            self._log(MULTI_COMPANY_PROVISION_MESSAGE, "warning")
+            self._log(MULTI_COMPANY_PROVISION_MESSAGE, "warning", ui=False)
             return
 
         try:
             roster = odoo.list_employees()
         except OdooError as exc:
-            self._log(f"Could not read the Odoo roster for provisioning: {exc}", "warning")
+            self._log(f"Could not read the Odoo roster for provisioning: {exc}", "warning", ui=False)
             return
 
         wanted: dict[str, str] = {}  # emp_code -> name, active employees only
@@ -610,7 +616,7 @@ class SyncEngine:
             try:
                 provider = build_source_provider(self.tenant, source)
             except (ProviderError, UnsupportedCapability, UnsafeTargetError) as exc:
-                self._log(f"'{source.name}': could not connect to provision employees: {exc}", "warning")
+                self._log(f"'{source.name}': could not connect to provision employees: {exc}", "warning", ui=False)
                 continue
 
             try:
@@ -625,7 +631,7 @@ class SyncEngine:
                         e.emp_code for e in provider.fetch_employees() if e.emp_code
                     }
                 except (ProviderError, UnsupportedCapability) as exc:
-                    self._log(f"'{source.name}': could not read its employee list: {exc}", "warning")
+                    self._log(f"'{source.name}': could not read its employee list: {exc}", "warning", ui=False)
                     continue
 
                 created_here = 0
@@ -648,10 +654,10 @@ class SyncEngine:
                         # validation rule, ...) must not abort the rest of
                         # the roster — same principle as _fetch_and_ingest
                         # isolating one dead source from the others.
-                        self._log(f"'{source.name}': could not provision '{code}': {exc}", "warning")
+                        self._log(f"'{source.name}': could not provision '{code}': {exc}", "warning", ui=False)
 
                 if created_here:
-                    self._log(f"'{source.name}': provisioned {created_here} employee(s) from Odoo's roster")
+                    self._log(f"'{source.name}': provisioned {created_here} employee(s) from Odoo's roster", ui=False)
                 provisioned += created_here
             finally:
                 provider.close()
@@ -669,7 +675,7 @@ class SyncEngine:
                 self.db, self.tenant, odoo, sources, self._log, build_source_provider
             )
         except Exception as exc:  # noqa: BLE001 — an import is a convenience, never a reason to fail a sync
-            self._log(f"Employee import skipped: {exc}", "warning")
+            self._log(f"Employee import skipped: {exc}", "warning", ui=False)
             return
         if imported:
             self.run.employees_matched = (self.run.employees_matched or 0) + imported
@@ -697,7 +703,7 @@ class SyncEngine:
         try:
             enabled = {row["id"] for row in odoo.list_employees()}
         except OdooError as exc:
-            self._log(f"Could not check which companies are on: {exc}", "warning")
+            self._log(f"Could not check which companies are on: {exc}", "warning", ui=False)
             return
 
         released = parked = 0
@@ -725,7 +731,8 @@ class SyncEngine:
         if released or parked:
             self.db.flush()
             self._log(
-                f"Company switches: {parked} employee(s) set aside, {released} restored"
+                f"Company switches: {parked} employee(s) set aside, {released} restored",
+                ui=False,
             )
 
     # -- stage 5 -----------------------------------------------------------
@@ -1316,6 +1323,48 @@ class SyncEngine:
         # fetch time (its terminal was imported later) — see device_links.
         return device_for_punch(self.db, punch)
 
+    def _sync_odoo_devices(self, odoo: OdooClient, odoo_conn: OdooConnection) -> None:
+        """Keep every terminal's Odoo device (and its company) current each
+        cycle, not only when a punch happens to be pushed — so a company set
+        in BioBridge, or a device registered before it was, reaches Odoo."""
+        if not odoo_conn.has_device_tracking:
+            self._log(
+                "Odoo device tracking is off for this connection, so terminals and their "
+                "companies are not written to Odoo. Run Test Connection to re-detect it.",
+                "warning",
+                ui=False,
+            )
+            return
+        for device in self.db.scalars(
+            select(Device).where(Device.tenant_id == self.tenant.id)
+        ):
+            self._odoo_device_id(odoo, odoo_conn, device)
+        try:
+            if odoo.ensure_device_company_rule():
+                self._log("Odoo device company rule is in place", ui=False)
+            for line in odoo.check_device_isolation():
+                # Server log only: a diagnostic, not something for the run log
+                # customers read.
+                log.info("[tenant=%s] Isolation check: %s", self.tenant.slug, line)
+        except Exception as exc:  # noqa: BLE001 — a diagnostic must never fail a sync
+            self._log(
+                f"Could not set up the Odoo device company rule: {exc}. The connected "
+                "user needs Settings access, or run Update Setup on the connection.",
+                "warning",
+                ui=False,
+            )
+
+    def _terminal_company_id(self, device: Device) -> int | None:
+        """The Odoo company this terminal belongs to: its own, else its
+        connection's default."""
+        if device.company_id is not None:
+            return device.company_id
+        source = self._source_cache.get(device.source_id)
+        if source is None and device.source_id:
+            source = self.db.get(DeviceSource, device.source_id)
+            self._source_cache[device.source_id] = source
+        return source.default_company_id if source is not None else None
+
     def _odoo_device_id(
         self, odoo: OdooClient, odoo_conn: OdooConnection, device: Device | None
     ) -> int | None:
@@ -1332,13 +1381,26 @@ class SyncEngine:
             return None
         if device.id in self._odoo_device_cache:
             return self._odoo_device_cache[device.id]
+        if not terminal_may_register_in_odoo(self.db, device):
+            self._log(
+                f"Terminal {device.serial_number} not written to Odoo: none of its "
+                "employees is mapped yet", ui=False,
+            )
+            return None
         try:
+            terminal_company = self._terminal_company_id(device)
             odoo_id = odoo.upsert_device(
                 device.serial_number,
                 name=device.alias,
                 location=device.area,
                 terminal_model=device.model,
                 ip_address=device.ip_address,
+                company_id=terminal_company,
+            )
+            self._log(
+                f"Odoo device {device.serial_number}: id {odoo_id}, company "
+                f"{terminal_company if terminal_company is not None else 'not set in BioBridge'}",
+                ui=False,
             )
         except OdooError as exc:
             # has_device_tracking was true as of the last connection test, but
@@ -1347,6 +1409,7 @@ class SyncEngine:
             self._log(
                 f"Could not register device {device.serial_number} in Odoo: {exc}",
                 "warning",
+                ui=False,
             )
             odoo_id = None
         self._odoo_device_cache[device.id] = odoo_id

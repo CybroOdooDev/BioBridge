@@ -214,9 +214,18 @@ class FakeOdoo:
     # Stands in for the optional biobridge_attendance add-on's model. Keyed
     # on serial number, same identity BioBridge's own Device row uses, so a
     # test can assert a terminal was only upserted once per run.
+    def ensure_device_company_rule(self):
+        return False
+
+    def check_device_isolation(self):
+        return []
+
     def upsert_device(
-        self, serial_number, name=None, location=None, terminal_model=None, ip_address=None
+        self, serial_number, name=None, location=None, terminal_model=None, ip_address=None,
+        company_id=None,
     ):
+        self.device_companies = getattr(self, 'device_companies', {})
+        self.device_companies[serial_number] = company_id
         self.calls.append(f"upsert_device:{serial_number}")
         if serial_number not in self.devices:
             self._next_device_id += 1

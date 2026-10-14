@@ -7,6 +7,8 @@ held on either.
 
 from __future__ import annotations
 
+import pytest
+
 from sqlalchemy import select
 
 from app.models import Device, DeviceSource, EmployeeMapping, PunchRecord, PunchState
@@ -240,8 +242,9 @@ def test_nothing_is_created_on_devices_when_several_companies_are_on(client):
     assert r.status_code == 400 and "more than one company" in r.json()["detail"]
 
 
-def test_sync_creates_no_device_employees_when_several_companies_are_on(db, tenant, monkeypatch):
-    """The per-source auto-provision flag is ignored, with a note in the run log."""
+def test_sync_creates_no_device_employees_when_several_companies_are_on(db, tenant, monkeypatch, caplog):
+    """The per-source auto-provision flag is ignored; the note goes to the
+    server log, not the attendance run log."""
     from tests.test_sync_engine import FakeProvider  # noqa: F401
     from app.services import sync_engine as engine_mod
 
@@ -254,5 +257,39 @@ def test_sync_creates_no_device_employees_when_several_companies_are_on(db, tena
 
     engine = engine_mod.SyncEngine(db, tenant, "test")
     engine._provision_employees(odoo, [source])
-    assert any("more than one company" in line for line in engine._log_lines)
+    assert "more than one company" in caplog.text
+    assert not any("more than one company" in line for line in engine._log_lines)
     assert engine.run.employees_provisioned in (0, None)
+
+
+def test_terminal_company_is_sent_to_odoo_device_upsert(client_factory=None):
+    """The device registered in Odoo carries the terminal's company."""
+    from app.services.sync_engine import SyncEngine
+
+    class D:  # minimal stand-in: own company wins
+        company_id = 10
+        source_id = None
+
+    assert SyncEngine._terminal_company_id(SyncEngine.__new__(SyncEngine), D()) == 10
+
+
+def test_terminal_with_only_unmapped_employees_is_not_registered_in_odoo(
+    db, tenant, local_day, monkeypatch
+):
+    """Held back until at least one of its employees is mapped."""
+    from app.services.device_links import terminal_may_register_in_odoo
+
+    odoo = FakeOdoo()
+    odoo.roster = []  # nobody in Odoo, so the badge stays unmapped
+    run(db, tenant, odoo, [punch(1, "9999", local_day.replace(hour=8))], monkeypatch)
+    source = db.scalars(select(DeviceSource).where(DeviceSource.tenant_id == tenant.id)).first()
+    device = db.scalar(select(Device).where(Device.source_id == source.id))
+    assert device is not None
+    assert terminal_may_register_in_odoo(db, device) is False
+    assert "upsert_device:GATE-01" not in odoo.calls
+
+    mapping = db.scalar(select(EmployeeMapping).where(
+        EmployeeMapping.tenant_id == tenant.id, EmployeeMapping.emp_code == "9999"))
+    mapping.status = "mapped"
+    db.flush()
+    assert terminal_may_register_in_odoo(db, device) is True

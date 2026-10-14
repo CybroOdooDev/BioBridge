@@ -133,3 +133,13 @@ def infer_device_companies(db: Session, tenant: Tenant) -> list[str]:
             notes.append(f"Terminal {label} is used by employees of several companies ({names}); "
                          "choose its company on the Terminals page")
     return notes
+
+
+def terminal_company_id(db: Session, device) -> int | None:
+    """The Odoo company a terminal belongs to: its own, else its connection's
+    default. The one place this is decided, so every path that registers a
+    terminal in Odoo stamps the same company."""
+    if device.company_id is not None:
+        return device.company_id
+    source = db.get(DeviceSource, device.source_id) if device.source_id else None
+    return source.default_company_id if source is not None else None

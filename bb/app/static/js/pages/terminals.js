@@ -1,10 +1,7 @@
-/* Terminals: every device the account's biometric connections bring in.
- *
- * Two tabs, one per kind, because the two kinds are configured differently and so
- * carry their controls in different places:
- * Standalone devices are each their own connection, so each row has its own
- * Sync now. Terminals behind a platform server (BioTime) are all read through
- * that server in one go, so the Sync now sits on the platform, once. */
+/* Terminals: every device the account's biometric connections bring in, in
+ * one table. Narrow it by protocol (BioTime, ZKTeco, Hikvision, ...) or group
+ * it by protocol or by connection. Sync Now and the default company belong to
+ * a connection, not a terminal, so they sit in a strip above the table. */
 
 import { api, auth } from '../api.js';
 import { empty, esc, fmtAgo, loading, pill, toast } from '../ui.js';
@@ -54,77 +51,113 @@ const syncButton = (source, label = 'Sync Now') => (auth.canWrite && source.is_a
              title="Pull ${esc(source.name)}'s punches now and push them to Odoo">${esc(label)}</button>`
   : '');
 
-function standaloneCard(sources, devicesBySource) {
-  if (!sources.length) return '';
+
+/* View choices live for the browser, not the account: try/catch because storage
+ * can be unavailable. */
+const VIEW = { protocol: 'all', group: 'none', q: '' };
+try {
+  VIEW.protocol = localStorage.getItem('bb.terminals.protocol') || 'all';
+  VIEW.group = localStorage.getItem('bb.terminals.group') || 'none';
+} catch { /* keep the defaults */ }
+const remember = (key, value) => { try { localStorage.setItem(`bb.terminals.${key}`, value); } catch { /* fine */ } };
+
+let PROTOCOLS = {};   // provider slug -> label
+
+const protocolOf = (source) => PROTOCOLS[source.provider] || source.provider || '—';
+
+/* One row per terminal. A standalone device that has not been recognised yet
+ * has no terminal record, so it shows as its connection, flagged as such. */
+function buildRows(sources, devicesBySource) {
+  const rows = [];
+  for (const source of sources) {
+    const devices = devicesBySource[source.id] || [];
+    if (!devices.length && source.connection_kind === 'device') {
+      rows.push({ source, device: null });
+    }
+    devices.forEach((device) => rows.push({ source, device }));
+  }
+  return rows;
+}
+
+const addressOf = (row) => row.device?.ip_address
+  || (row.source.connection_kind === 'device' ? row.source.base_url.replace(/^zk:\/\//i, '') : '—');
+
+function rowHtml({ source, device }, showCompany) {
+  if (!device) {
+    return `<tr>
+      <td><strong>${esc(source.name)}</strong></td><td class="mono">—</td>
+      <td>${esc(source.name)}</td><td>${esc(protocolOf(source))}</td>
+      <td class="mono">${esc(addressOf({ source, device }))}</td><td>—</td>
+      <td class="num">—</td><td>—</td>${showCompany ? '<td>—</td>' : ''}
+      <td><span class="hint" data-tip="Recorded the first time Test connection reaches the device (Settings → Biometric connections)">Not Recognised Yet</span></td>
+    </tr>`;
+  }
+  return `<tr>
+    <td><strong>${esc(device.alias || device.serial_number)}</strong></td>
+    <td class="mono">${esc(device.serial_number)}</td>
+    <td>${esc(source.name)}</td>
+    <td>${esc(protocolOf(source))}</td>
+    <td class="mono">${esc(addressOf({ source, device }))}</td>
+    <td>${esc(device.area || '—')}</td>
+    <td class="num">${esc(device.punch_count)}</td>
+    <td>${esc(device.last_seen_at ? fmtAgo(device.last_seen_at) : '—')}</td>
+    ${showCompany ? `<td>${deviceCompanyCell(device, source)}</td>` : ''}
+    <td>${deviceState(device)}</td>
+  </tr>`;
+}
+
+function tableHtml(rows, sources, showCompany) {
+  if (!rows.length) {
+    return `<div class="card">${empty('No Terminals Match', 'Clear the search or pick another protocol.')}</div>`;
+  }
+  const cols = 9 + (showCompany ? 1 : 0);
+  const groupKey = (r) => (VIEW.group === 'protocol' ? protocolOf(r.source)
+    : VIEW.group === 'connection' ? r.source.name : '');
+  const groups = new Map();
+  rows.forEach((r) => {
+    const key = groupKey(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  });
+  const body = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, list]) => `
+    ${VIEW.group === 'none' ? '' : `<tr class="group-row"><td colspan="${cols}"><strong>${esc(key)}</strong>
+      <span class="hint">${list.length} terminal${list.length === 1 ? '' : 's'}</span></td></tr>`}
+    ${list.map((r) => rowHtml(r, showCompany)).join('')}`).join('');
   return `
-    <div class="card" style="margin-bottom:18px">
+    <div class="card">
       <div class="scroll">
         <table class="tight-table">
-          <thead><tr><th>Device</th><th>Address</th><th>Serial</th>
-            <th class="num">Punches</th><th>Last Seen</th>${COMPANIES.length > 1 ? '<th>Company</th>' : ''}<th>State</th><th>Connection</th><th></th></tr></thead>
-          <tbody>
-            ${sources.map((s) => {
-              const d = (devicesBySource[s.id] || [])[0];
-              // One line per cell, laid out like the platform tables below: the
-              // device state gets its own column and "checked … ago" moves into
-              // the connection pill's hover label, so badges no longer sit
-              // stacked under text at a different height from the rest of the row.
-              return `
-                <tr>
-                  <td><strong>${esc(d?.alias || s.name)}</strong></td>
-                  <td class="mono">${esc(s.base_url.replace(/^zk:\/\//i, ''))}</td>
-                  <td class="mono">${esc(d?.serial_number || '—')}</td>
-                  <td class="num">${esc(d?.punch_count ?? '—')}</td>
-                  <td>${esc(d?.last_seen_at ? fmtAgo(d.last_seen_at) : '—')}</td>
-                  ${COMPANIES.length > 1 ? `<td>${d ? deviceCompanyCell(d, s) : '—'}</td>` : ''}
-                  <td>${d ? deviceState(d)
-                      : '<span class="hint" data-tip="Recorded the first time Test connection reaches the device (Settings → Biometric connections)">Not Recognised Yet</span>'}</td>
-                  <td><span data-tip="Checked ${esc(fmtAgo(s.last_checked_at))}">${pill(s.status)}</span></td>
-                  <td class="actions-cell"><div class="row-actions">${syncButton(s)}</div></td>
-                </tr>`;
-            }).join('')}
-          </tbody>
+          <thead><tr><th>Terminal</th><th>Serial</th><th>Connection</th><th>Protocol</th><th>Address</th><th>Area</th>
+            <th class="num">Punches</th><th>Last Seen</th>${showCompany ? '<th>Company</th>' : ''}<th>State</th></tr></thead>
+          <tbody>${body}</tbody>
         </table>
       </div>
     </div>`;
 }
 
-function platformCard(source, devices) {
+/* The connections behind the table: what Sync Now and the default company act on. */
+function connectionsStrip(sources, showCompany) {
   return `
-    <div class="card" style="margin-bottom:18px">
-      <div class="card-head" style="position:static">
-        <h2>${esc(source.name)}</h2>
-        <div class="actions">
-          ${COMPANIES.length > 1 && auth.canWrite ? `
-            <label class="hint" data-tip="Every terminal of this connection belongs to this company unless it sets its own.">
-              Default Company:
-              <select class="sm" data-source-company="${esc(source.id)}">${companyOptions(source.default_company_id, 'Not set')}</select>
-            </label>` : ''}
-          <span data-tip="Checked ${esc(fmtAgo(source.last_checked_at))}">${pill(source.status)}</span>
-          ${syncButton(source)}
-        </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="scroll">
+        <table class="tight-table">
+          <thead><tr><th>Connection</th><th>Protocol</th><th>Type</th><th>Status</th>${showCompany ? '<th>Default Company</th>' : ''}<th></th></tr></thead>
+          <tbody>
+            ${sources.map((source) => `
+              <tr>
+                <td><strong>${esc(source.name)}</strong></td>
+                <td>${esc(protocolOf(source))}</td>
+                <td>${source.connection_kind === 'device' ? 'Standalone Device' : 'Platform Server'}</td>
+                <td><span data-tip="Checked ${esc(fmtAgo(source.last_checked_at))}">${pill(source.status)}</span></td>
+                ${showCompany ? `<td>${source.connection_kind !== 'device' && auth.canWrite
+                  ? `<select class="sm" data-source-company="${esc(source.id)}"
+                       data-tip="Every terminal of this connection belongs to this company unless it sets its own.">${companyOptions(source.default_company_id, 'Not set')}</select>`
+                  : esc(source.default_company_name || '—')}</td>` : ''}
+                <td class="actions-cell"><div class="row-actions">${syncButton(source)}</div></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
-      ${devices.length ? `
-        <div class="scroll">
-          <table>
-            <thead><tr><th>Terminal</th><th>Serial</th><th>IP</th><th>Area</th>
-              <th class="num">Punches</th><th>Last Seen</th>${COMPANIES.length > 1 ? '<th>Company</th>' : ''}<th>State</th></tr></thead>
-            <tbody>
-              ${devices.map((d) => `
-                <tr>
-                  <td><strong>${esc(d.alias || d.serial_number)}</strong></td>
-                  <td class="mono">${esc(d.serial_number)}</td>
-                  <td class="mono">${esc(d.ip_address || '—')}</td>
-                  <td>${esc(d.area || '—')}</td>
-                  <td class="num">${esc(d.punch_count)}</td>
-                  <td>${esc(d.last_seen_at ? fmtAgo(d.last_seen_at) : '—')}</td>
-                  ${COMPANIES.length > 1 ? `<td>${deviceCompanyCell(d, source)}</td>` : ''}
-                  <td>${deviceState(d)}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>` : empty('No Terminals Imported Yet',
-          'Use “Import terminals” on this connection in Settings → Biometric connections.')}
     </div>`;
 }
 
@@ -143,45 +176,85 @@ async function loadCompanies() {
   }
 }
 
+
 export async function renderTerminals(mount, route) {
   mount.innerHTML = loading();
-  const [sources, devices] = await Promise.all([
+  const [sources, devices, providers] = await Promise.all([
     api.get('/sources'),
     api.get('/devices').catch(() => []),
+    api.get('/providers').catch(() => []),
   ]);
+  PROTOCOLS = Object.fromEntries(providers.map((p) => [p.slug, p.label]));
   COMPANIES = await loadCompanies();
   const devicesBySource = {};
   devices.forEach((d) => { (devicesBySource[d.source_id] ||= []).push(d); });
-  const standalone = sources.filter((s) => s.connection_kind === 'device');
-  const platforms = sources.filter((s) => s.connection_kind !== 'device');
-  // One kind at a time, as tabs: ?view= picks, otherwise whichever kind this
-  // account actually has (standalone first when it has both).
-  const asked = route?.query?.view;
-  const view = asked === 'platforms' || asked === 'standalone' ? asked
-    : standalone.length || !platforms.length ? 'standalone' : 'platforms';
-  const count = standalone.length + platforms.reduce((n, s) => n + (devicesBySource[s.id] || []).length, 0);
 
-  mount.innerHTML = sources.length ? `
+  if (!sources.length) {
+    mount.innerHTML = `
+      <div class="card">
+        ${empty('No Biometric Connections Yet', 'Add a BioTime server or a standalone device, then its terminals show up here.')}
+        ${auth.canWrite ? '<div class="row" style="justify-content:center"><a class="btn primary-link" href="#/settings/biometric?add=1">Add Connection</a></div>' : ''}
+      </div>`;
+    return;
+  }
+
+  const showCompany = COMPANIES.length > 1;
+  const all = buildRows(sources, devicesBySource);
+  // A protocol that no longer exists among the connections falls back to All.
+  const used = [...new Set(sources.map((s) => s.provider))];
+  if (VIEW.protocol !== 'all' && !used.includes(VIEW.protocol)) VIEW.protocol = 'all';
+
+  const needle = VIEW.q.trim().toLowerCase();
+  const shown = all.filter(({ source, device }) =>
+    (VIEW.protocol === 'all' || source.provider === VIEW.protocol)
+    && (!needle || [device?.alias, device?.serial_number, device?.ip_address, source.name]
+      .some((v) => String(v || '').toLowerCase().includes(needle))));
+  const shownSources = sources.filter((s) => VIEW.protocol === 'all' || s.provider === VIEW.protocol);
+  const count = (slug) => all.filter((r) => slug === 'all' || r.source.provider === slug).length;
+
+  mount.innerHTML = `
     <div class="page-bar">
-      <span class="hint">${count} terminal${count === 1 ? '' : 's'} across ${sources.length} connection${sources.length === 1 ? '' : 's'}</span>
+      <span class="hint">${all.length} terminal${all.length === 1 ? '' : 's'} across ${sources.length} connection${sources.length === 1 ? '' : 's'}</span>
       <a class="btn sm" href="#/settings/biometric">Manage Connections</a>
     </div>
-    <nav class="tabs" aria-label="Connection type">
-      <a href="#/terminals?view=standalone" class="${view === 'standalone' ? 'active' : ''}"
-         ${view === 'standalone' ? 'aria-current="page"' : ''}>Standalone Devices <span class="tab-count">${standalone.length}</span></a>
-      <a href="#/terminals?view=platforms" class="${view === 'platforms' ? 'active' : ''}"
-         ${view === 'platforms' ? 'aria-current="page"' : ''}>Platform Servers <span class="tab-count">${platforms.length}</span></a>
-    </nav>
-    ${view === 'standalone'
-      ? (standalone.length ? standaloneCard(standalone, devicesBySource)
-        : `<div class="card">${empty('No Standalone Devices', 'Add one in Settings → Biometric connections.')}</div>`)
-      : (platforms.length ? platforms.map((s) => platformCard(s, devicesBySource[s.id] || [])).join('')
-        : `<div class="card">${empty('No Platform Servers', 'Add one in Settings → Biometric connections.')}</div>`)}
-  ` : `
-    <div class="card">
-      ${empty('No Biometric Connections Yet', 'Add a BioTime server or a standalone device, then its terminals show up here.')}
-      ${auth.canWrite ? '<div class="row" style="justify-content:center"><a class="btn primary-link" href="#/settings/biometric?add=1">Add Connection</a></div>' : ''}
-    </div>`;
+    <div class="list-toolbar" style="margin-bottom:14px">
+      <label class="hint">Protocol:
+        <select id="tProtocol" class="sm" aria-label="Filter by protocol">
+          <option value="all">All Protocols (${count('all')})</option>
+          ${used.sort((a, b) => (PROTOCOLS[a] || a).localeCompare(PROTOCOLS[b] || b)).map((slug) =>
+            `<option value="${esc(slug)}"${VIEW.protocol === slug ? ' selected' : ''}>${esc(PROTOCOLS[slug] || slug)} (${count(slug)})</option>`).join('')}
+        </select>
+      </label>
+      <label class="hint">Group By:
+        <select id="tGroup" class="sm" aria-label="Group terminals">
+          ${[['none', 'None'], ['protocol', 'Protocol'], ['connection', 'Connection']].map(([v, l]) =>
+            `<option value="${v}"${VIEW.group === v ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+      </label>
+      <div class="search-box" style="max-width:260px;margin-left:auto">
+        <input id="tSearch" type="search" placeholder="Search terminals…" value="${esc(VIEW.q)}" aria-label="Search terminals">
+      </div>
+    </div>
+    ${connectionsStrip(shownSources, showCompany)}
+    ${tableHtml(shown, sources, showCompany)}
+  `;
+
+  mount.querySelector('#tProtocol').addEventListener('change', (e) => {
+    VIEW.protocol = e.target.value; remember('protocol', VIEW.protocol); renderTerminals(mount, route);
+  });
+  mount.querySelector('#tGroup').addEventListener('change', (e) => {
+    VIEW.group = e.target.value; remember('group', VIEW.group); renderTerminals(mount, route);
+  });
+  let timer;
+  mount.querySelector('#tSearch').addEventListener('input', (e) => {
+    VIEW.q = e.target.value;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      await renderTerminals(mount, route);
+      const box = mount.querySelector('#tSearch');
+      box.focus(); box.setSelectionRange(box.value.length, box.value.length);
+    }, 250);
+  });
 
   const onPick = (selector, save) => mount.querySelectorAll(selector).forEach((select) => {
     select.addEventListener('change', async () => {

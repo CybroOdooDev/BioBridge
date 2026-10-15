@@ -21,7 +21,8 @@ own via ``options["_db"]``.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from datetime import datetime, timezone
+from typing import Iterator
 
 from app.integrations.base import (
     AttendanceProvider,
@@ -34,13 +35,8 @@ from app.integrations.base import (
     TerminalRecord,
     register,
 )
-from datetime import datetime, timezone
-
-UTC = timezone.utc
 
 SCHEME = "adms://"
-
-
 
 
 def serial_from_address(base_url: str) -> str:
@@ -56,8 +52,8 @@ def _ago(when: datetime | None) -> str:
     if when is None:
         return "never"
     if when.tzinfo is None:
-        when = when.replace(tzinfo=UTC)
-    seconds = int((datetime.now(UTC) - when).total_seconds())
+        when = when.replace(tzinfo=timezone.utc)
+    seconds = int((datetime.now(timezone.utc) - when).total_seconds())
     if seconds < 5:
         return "just now"
     if seconds < 90:

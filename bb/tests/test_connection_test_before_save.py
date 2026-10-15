@@ -81,7 +81,7 @@ def test_a_failing_unsaved_odoo_form_reports_why(client, monkeypatch):  # noqa: 
               "username": "api@acme.com", "api_key": "wrong"},
         headers=auth(token),
     ).json()
-    assert body == {"ok": False, "message": "Access denied", "detail": {}}
+    assert body == {"ok": False, "message": "Access denied", "detail": {}}  # already plain: kept
 
 
 def test_an_unsaved_odoo_form_with_no_key_is_refused(client):  # noqa: F811

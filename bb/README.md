@@ -137,8 +137,9 @@ does the sync inside the request.
 Try the whole loop with no hardware:
 
 ```bash
-python3 tools/generate_punches.py                       # writes punches.json, timed off right now
-python3 tools/mock_biotime.py --punches punches.json     # fake BioTime on :8099
+python3 tools/mock_biotime.py --tenant <slug>            # fake BioTime on :8099, live punches by default; log in as username <slug>
+python3 tools/mock_zk_terminal.py --tenant <slug> --company <id>   # fake standalone ZKTeco unit on :4370 (add it as zk://127.0.0.1:4370), live punches; control on :5370
+# optional, one-off history only:  python3 tools/generate_punches.py --tenant <slug>
 python3 tools/e2e_proof.py --odoo-url https://your.odoo.com \
     --odoo-db yourdb --odoo-user you@example.com --odoo-key <api-key>
 ```
@@ -1237,8 +1238,8 @@ server. It prints the URL to paste, and binds loopback-only unless told
 otherwise:
 
 ```bash
-python3 tools/mock_biotime.py --port 8090 --punches punches.json
-python3 tools/mock_biotime.py --host 0.0.0.0 --port 8090   # BioBridge elsewhere
+python3 tools/mock_biotime.py --tenant <slug> --port 8090
+python3 tools/mock_biotime.py --tenant <slug> --host 0.0.0.0 --port 8090   # BioBridge elsewhere
 ```
 
 #### Live punches (simulation)

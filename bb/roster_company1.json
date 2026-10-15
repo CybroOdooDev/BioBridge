@@ -1,20 +1,36 @@
 {
   "company_id": 1,
-  "company_name": "Cybrosys",
+  "company_name": "My Company",
   "departments": [],
   "employees": [
     {
-      "id": 2,
-      "emp_code": "5",
-      "first_name": "beevi",
+      "id": 19,
+      "emp_code": "10001",
+      "first_name": "Ava",
       "last_name": "",
       "department": null,
       "enable_attendance": true
     },
     {
-      "id": 3,
-      "emp_code": "6001",
-      "first_name": "marc",
+      "id": 20,
+      "emp_code": "10002",
+      "first_name": "Janine",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 21,
+      "emp_code": "10003",
+      "first_name": "Micheal",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 22,
+      "emp_code": "10004",
+      "first_name": "Ann",
       "last_name": "",
       "department": null,
       "enable_attendance": true
@@ -35,10 +51,10 @@
     }
   ],
   "skipped": [
-    "Fathima Habeeb"
+    "Administrator"
   ],
   "odoo": {
-    "url": "https://cybrosys.odoo.com",
-    "db": "cybrosys"
+    "url": "https://bio-bridge.easyinstance.com",
+    "db": "bio_bridge"
   }
 }

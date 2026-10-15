@@ -196,5 +196,5 @@ function statusRow(connection) {
       ${pill(connection.status)}
     </div>
     ${connection.status_message
-      ? banner('Last Error', connection.status_message, 'bad') : ''}`;
+      ? banner('Error', connection.status_message, 'bad') : ''}`;
 }

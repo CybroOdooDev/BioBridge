@@ -861,10 +861,11 @@ async function renderOdoo(mount, route) {
       const v = odooValues();
       const asSaved = odoo && !v.api_key && v.url === odoo.url
         && v.db_name === odoo.db_name && v.username === odoo.username;
-      if (result.ok && asSaved) {
+      // A failure is recorded too: the pill must go to Failed, not keep saying Connected.
+      if (asSaved) {
         try {
-          const saved = await api.post(`/odoo-connections/${odoo.id}/test`);
-          if (saved.ok) {
+          await api.post(`/odoo-connections/${odoo.id}/test`);
+          {
             const fresh = (await api.get('/odoo-connections')).find((c) => c.id === odoo.id);
             if (fresh) {
               Object.assign(odoo, fresh);
@@ -872,7 +873,7 @@ async function renderOdoo(mount, route) {
               if (box) box.innerHTML = statusRow(odoo);
             }
           }
-        } catch { /* the test itself passed; the pill catches up on the next load */ }
+        } catch { /* the pill catches up on the next load */ }
       }
       return result;
     },
@@ -1261,6 +1262,22 @@ async function renderBiometric(mount, route) {
  * trapping and Esc-to-close for free. Nothing is saved until Connect.
  * ======================================================================== */
 
+/* Companies switched on for the account's Odoo; [] when there is no Odoo, it
+ * has a single company, or it cannot be reached (the picker is then hidden). */
+async function loadEnabledCompanies() {
+  try {
+    const conns = await api.get('/odoo-connections');
+    const conn = conns.find((c) => c.is_active !== false) || conns[0];
+    if (!conn) return [];
+    const all = await api.get(`/odoo-connections/${conn.id}/companies`);
+    const off = new Set(conn.disabled_company_ids || []);
+    const on = all.filter((c) => !off.has(c.id) && (conn.company_id == null || c.id === conn.company_id));
+    return on.length > 1 ? on : [];
+  } catch {
+    return [];
+  }
+}
+
 function openAddWizard({ providersFor, onDone, canProvision = new Set() }) {
   document.querySelector('dialog.wizard')?.remove();
   const dialog = document.createElement('dialog');
@@ -1275,6 +1292,20 @@ function openAddWizard({ providersFor, onDone, canProvision = new Set() }) {
     tested: null,      // { fingerprint, result }
   };
   const STEPS = ['Details', 'Test & Connect'];
+  // A standalone device is one terminal and belongs to one company.
+  let companies = [];
+  loadEnabledCompanies().then((list) => {
+    companies = list;
+    if (dialog.isConnected && state.step === 1 && state.provider && kind() === 'device' && list.length) {
+      state.values = readForm($('#wizForm', dialog) || dialog);
+      render();
+    }
+  });
+  const companyField = () => (isDevice() && companies.length ? field({
+    name: 'company_id', label: 'Company', required: true, value: state.values.company_id || '',
+    options: [{ value: '', label: 'Choose a company…' }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))],
+    help: 'The Odoo company this device belongs to. Its punches go to this company only.',
+  }) : '');
 
   const allProviders = providersFor();
   const metaOf = () => allProviders.find((p) => p.slug === state.provider);
@@ -1290,6 +1321,11 @@ function openAddWizard({ providersFor, onDone, canProvision = new Set() }) {
     const values = { ...state.values };
     values.connection_kind = kind();
     values.provider = state.provider;
+    const pickedCompany = values.company_id ? companies.find((c) => String(c.id) === String(values.company_id)) : null;
+    delete values.company_id;
+    if (pickedCompany && isDevice()) {
+      values.config = { ...(values.config || {}), company_id: pickedCompany.id, company_name: pickedCompany.name };
+    }
     if (state.provider === 'zk_device' && values.base_url && !/^zk:\/\//i.test(values.base_url)) {
       values.base_url = `zk://${values.base_url}`;
     }
@@ -1329,7 +1365,7 @@ function openAddWizard({ providersFor, onDone, canProvision = new Set() }) {
             placeholder: 'Search or choose a protocol…', emptyNote: 'No Matching Protocol',
           })}
           ${state.provider
-            ? sourceFieldsHtml(null, kind(), [metaOf()], state.provider)
+            ? sourceFieldsHtml(null, kind(), [metaOf()], state.provider) + companyField()
             : '<p class="hint">Pick a protocol to see what it needs — BioTime, ZKTeco, Hikvision, Dahua and more.</p>'}
         </form>`;
     }
@@ -1341,6 +1377,7 @@ function openAddWizard({ providersFor, onDone, canProvision = new Set() }) {
       ['Type', hintOf(metaOf() || {})],
       ['Name', v.name],
       ...(isDevice() ? [['Location', v.location]] : []),
+      ...(isDevice() && v.config?.company_name ? [['Company', v.config.company_name]] : []),
       [push ? 'Device Serial' : ['crosschex', 'hikconnect'].includes(state.provider) ? 'Region' : state.provider === 'cams' ? 'Endpoint URL' : isDevice() ? 'Device Address' : 'Server URL',
         push ? String(v.base_url || '').replace(/^adms:\/\//i, '') : v.base_url],
       ...(v.username ? [[state.provider === 'crosschex' ? 'API Key' : state.provider === 'hikconnect' ? 'App Key' : state.provider === 'hikcentral' ? 'Partner Key' : state.provider === 'cams' ? 'Service Tag ID' : 'Username', v.username]] : []),
@@ -1752,12 +1789,12 @@ function sourceCard(source, devices, readonly, canProvision = false, canImport =
           <button type="button" class="sm danger" data-remove-commit="${esc(source.id)}">Remove</button>
           <button type="button" class="sm link" data-remove-cancel="${esc(source.id)}">Cancel</button>
         </div>` : ''}
-      ${source.status_message ? banner('Last Error', source.status_message, 'bad') : ''}
+      ${source.status_message ? banner('Error', source.status_message, 'bad') : ''}
 
       ${devices.length ? `
         <div class="scroll" style="margin-top:12px">
           <table>
-            <thead><tr><th>Device</th><th>Serial</th><th>IP</th><th class="num">Punches</th><th>Last Seen</th><th>Pairing</th><th></th></tr></thead>
+            <thead><tr><th>Device</th><th>Serial</th><th>IP</th><th class="num">Punches</th><th>Last Seen</th><th></th></tr></thead>
             <tbody>
               ${devices.map((d) => `
                 <tr data-device="${esc(d.id)}">
@@ -1771,7 +1808,6 @@ function sourceCard(source, devices, readonly, canProvision = false, canImport =
                   <td class="mono">${esc(d.ip_address || '—')}</td>
                   <td class="num">${esc(d.matched_punch_count ?? d.punch_count)}</td>
                   <td>${esc(fmtAgo(d.last_seen_at))}</td>
-                  <td>${esc(d.pairing_override || 'account default')}</td>
                   <td style="text-align:right">
                     ${readonly ? pill(d.is_enabled ? 'active' : 'skipped')
                       : `<div class="row" style="justify-content:flex-end;gap:6px;flex-wrap:nowrap">
@@ -2187,7 +2223,7 @@ function statusRow(connection) {
       ${pill(connection.status)}
     </div>
     ${connection.status_message
-      ? banner('Last Error', connection.status_message, 'bad') : ''}`;
+      ? banner('Error', connection.status_message, 'bad') : ''}`;
 }
 
 function wireBiometric(mount, canProvision = new Set(), sources = [], providersFor) {

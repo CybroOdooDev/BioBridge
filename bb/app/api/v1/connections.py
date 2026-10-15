@@ -66,6 +66,7 @@ from app.services.company_scope import (
 )
 from app.services.device_limits import over_limit_device_ids
 from app.services.device_links import terminal_may_register_in_odoo
+from app.services.friendly_errors import friendly_odoo_message
 from app.services.provisioning import provision_unmapped
 from app.services.roster_import import auto_import
 from app.services.sync_engine import SyncEngine
@@ -112,10 +113,13 @@ def _probe_odoo(principal: Principal, conn: OdooConnection) -> TestResult:
     try:
         info = build_odoo_client(principal.tenant, conn).ping()
     except (OdooError, UnsafeTargetError) as exc:
+        # The customer sees one short sentence; the technical detail is ours.
+        log.warning("Odoo connection test failed for %s: %s", conn.url, exc)
+        friendly = friendly_odoo_message(exc)
         conn.status = ConnectionStatus.failed.value
-        conn.status_message = str(exc)[:500]
+        conn.status_message = friendly
         conn.last_checked_at = datetime.now(timezone.utc)
-        return TestResult(ok=False, message=str(exc))
+        return TestResult(ok=False, message=friendly)
 
     conn.status = ConnectionStatus.connected.value
     conn.status_message = None
@@ -1003,11 +1007,45 @@ def _register_standalone_device(
     for other_serial, other in known.items():
         if other_serial != serial and other.missing_since is None:
             other.missing_since = now
+    # One terminal, one company: it takes the connection's company outright
+    # rather than waiting for punches to reveal it. On a single-company Odoo
+    # the choice is made for it; on a multi-company one it stays unset until the
+    # customer picks (the add dialog asks), and its punches are held.
+    if source.default_company_id is None:
+        _adopt_only_company(db, principal, source)
+    if source.default_company_id is not None and device.company_id is None:
+        device.company_id = source.default_company_id
+        device.company_name = source.default_company_name
     db.flush()
 
     problem = _push_devices_to_odoo(db, principal, [device])
     what = f"{'Registered' if created else 'Updated'} terminal {serial}"
     return f"{what}; {problem}" if problem else f"{what}."
+
+
+def _adopt_only_company(db: Session, principal: Principal, source: DeviceSource) -> None:
+    """On a single-company Odoo, make its one company this connection's company.
+    Quiet no-op on a multi-company Odoo, no Odoo, or when Odoo can't be reached."""
+    conn = db.scalars(
+        select(OdooConnection).where(
+            OdooConnection.tenant_id == principal.tenant.id,
+            OdooConnection.is_active.is_(True),
+        ).limit(1)
+    ).first()
+    if conn is None:
+        return
+    try:
+        odoo = build_odoo_client(principal.tenant, conn)
+        odoo.authenticate()
+        companies = odoo.list_companies()
+    except (OdooError, UnsafeTargetError):
+        return
+    if len(companies) != 1:
+        return
+    config = dict(source.config or {})
+    config["company_id"] = companies[0]["id"]
+    config["company_name"] = companies[0].get("name")
+    source.config = config
 
 
 @router.post("/sources/{source_id}/discover-devices", response_model=list[DeviceOut])
@@ -1343,8 +1381,15 @@ def set_source_company(
         config["company_name"] = payload.company_name
     source.config = config  # reassigned, so the JSON change is seen as a change
     audit(db, principal, "source.company", source.id, str(payload.company_id), request)
+    if source.connection_kind == "device":
+        # A standalone device is one terminal, so its company is the
+        # connection's, not something left to inherit.
+        for terminal in db.scalars(select(Device).where(Device.source_id == source.id)):
+            terminal.company_id = payload.company_id
+            terminal.company_name = payload.company_name if payload.company_id is not None else None
     db.commit()
     db.refresh(source)
     _push_devices_to_odoo(db, principal, list(db.scalars(
-        select(Device).where(Device.source_id == source.id, Device.company_id.is_(None)))))
+        select(Device).where(Device.source_id == source.id, Device.company_id.is_(None)
+                             if source.connection_kind != "device" else Device.id.is_not(None)))))
     return source

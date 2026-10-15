@@ -1571,4 +1571,19 @@ td .switch { vertical-align: middle; }
 
 /* Terminals: group header rows */
 .group-row td { background: var(--surface-2, rgba(127,127,127,.08)); font-weight: 600; font-size: 12px; letter-spacing: .02em; padding: 8px 12px; }
+.group-row .chev { display: inline-block; width: 14px; color: var(--muted, #6b7280); }
+.group-row:hover td { filter: brightness(.97); }
 .group-row .muted { font-weight: 400; margin-left: 6px; }
+
+/* Terminals table: one line per terminal, nothing squeezed. */
+.terminals-table td, .terminals-table th { white-space: nowrap; }
+.terminals-table td.mono { font-size: 12px; }
+.terminals-table select.sm { min-width: 170px; }
+.terminals-table .scroll, .scroll:has(.terminals-table) { overflow-x: auto; }
+.terminals-table { min-width: 860px; }
+
+/* Terminals: connection rows get room, and the card keeps its bottom edge. */
+.terminals-strip .scroll { margin-bottom: 0; padding-bottom: 6px; }
+.terminals-strip tbody > tr:not(.conn-detail) > td { padding-top: 16px; padding-bottom: 16px; }
+.terminals-strip .conn-row:hover td { background: var(--surface-2, rgba(127,127,127,.06)); }
+.terminals-strip .conn-detail td { padding-top: 0; }

@@ -44,19 +44,23 @@ def odoo(monkeypatch, tmp_path):
     # Never read the developer's real database: with Odoo connections to
     # several servers saved there, the lookup would refuse to guess.
     monkeypatch.setattr(mock_roster, "_saved_connection", lambda tenant_slug=None: None)
+    monkeypatch.setattr(mock_roster, "_tenant_settings",
+                        lambda tenant: {"known": None, "pin": None, "disabled": []})
     return fake
 
 
 def test_generate_punches_for_an_odoo_company(odoo, tmp_path, monkeypatch, capsys):
     from tools.generate_punches import main
 
-    monkeypatch.setattr(sys, "argv", ["generate_punches.py", "--company", "7", "--days", "3",
+    monkeypatch.setattr(mock_roster, "odoo_login", lambda args: ("http://odoo.test", "db", "u", "k"))
+
+    monkeypatch.setattr(sys, "argv", ["generate_punches.py", "--tenant", "acme", "--company", "7", "--days", "3",
                                       "--include-weekends", "--seed", "1"])
     assert main() == 0
-    rows = json.loads((tmp_path / "punches_company7.json").read_text())
+    rows = json.loads((tmp_path / "mock_data" / "acme" / "punches.json").read_text())
     assert {r["emp_code"] for r in rows} == {"7001", "7002"}
-    assert {r["terminal_sn"] for r in rows} <= {"MOCK-C7-GATE-01", "MOCK-C7-GATE-02"}
-    roster = json.loads((tmp_path / "roster_company7.json").read_text())
+    assert {r["terminal_sn"] for r in rows} <= {"MOCK-ACME-C7-GATE-01", "MOCK-ACME-C7-GATE-02"}
+    roster = json.loads((tmp_path / "mock_data" / "acme" / "roster_company7.json").read_text())
     assert roster["company_name"] == "Kochi Branch" and roster["skipped"] == ["No Badge Person"]
     assert roster["employees"][0]["department"]["dept_name"] == "Production"
     assert "Kochi Branch" in capsys.readouterr().out

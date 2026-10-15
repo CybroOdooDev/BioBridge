@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
+from typing import Iterator
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
@@ -58,10 +59,6 @@ from app.integrations.base import (
     TerminalRecord,
     register,
 )
-from datetime import datetime, timedelta, timezone
-
-UTC = timezone.utc
-
 
 log = logging.getLogger(__name__)
 
@@ -112,7 +109,7 @@ def parse_created(value: str, zone: ZoneInfo) -> datetime | None:
         return None
     if text.isdigit():
         number = int(text)
-        return datetime.fromtimestamp(number / 1000 if number > 1e11 else number, tz=UTC)
+        return datetime.fromtimestamp(number / 1000 if number > 1e11 else number, tz=timezone.utc)
     try:
         moment = datetime.fromisoformat(text.replace("Z", "+00:00").replace(" ", "T", 1))
     except ValueError:
@@ -293,7 +290,7 @@ class DahuaProvider(AttendanceProvider):
                 when = parse_created(row.get("CreateTime", ""), zone)
                 if not user or when is None:
                     continue
-                utc = when.astimezone(UTC)
+                utc = when.astimezone(timezone.utc)
                 rec = (row.get("RecNo") or "").strip()
                 door = (row.get("Door") or row.get("ReaderID") or "").strip()
                 yield PunchEvent(

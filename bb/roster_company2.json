@@ -1,28 +1,68 @@
 {
   "company_id": 2,
-  "company_name": "Cybrosys 2",
+  "company_name": "My Company 2",
   "departments": [],
   "employees": [
     {
-      "id": 4,
-      "emp_code": "70001",
-      "first_name": "Max",
+      "id": 23,
+      "emp_code": "43208",
+      "first_name": "TestEmp8",
       "last_name": "",
       "department": null,
       "enable_attendance": true
     },
     {
-      "id": 5,
-      "emp_code": "70002",
-      "first_name": "George",
+      "id": 24,
+      "emp_code": "62514",
+      "first_name": "TestEmp4",
       "last_name": "",
       "department": null,
       "enable_attendance": true
     },
     {
-      "id": 6,
-      "emp_code": "70003",
-      "first_name": "Charles",
+      "id": 25,
+      "emp_code": "333210",
+      "first_name": "TestEmp10",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 26,
+      "emp_code": "1",
+      "first_name": "Dipesh",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 27,
+      "emp_code": "2",
+      "first_name": "Marie",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 28,
+      "emp_code": "3",
+      "first_name": "Tejas",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 29,
+      "emp_code": "5",
+      "first_name": "beevi",
+      "last_name": "",
+      "department": null,
+      "enable_attendance": true
+    },
+    {
+      "id": 30,
+      "emp_code": "6001",
+      "first_name": "marc",
       "last_name": "",
       "department": null,
       "enable_attendance": true
@@ -44,7 +84,7 @@
   ],
   "skipped": [],
   "odoo": {
-    "url": "https://cybrosys.odoo.com",
-    "db": "cybrosys"
+    "url": "https://bio-bridge.easyinstance.com",
+    "db": "bio_bridge"
   }
 }

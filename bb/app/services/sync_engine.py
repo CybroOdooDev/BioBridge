@@ -1328,6 +1328,8 @@ class SyncEngine:
         cycle, not only when a punch happens to be pushed — so a company set
         in BioBridge, or a device registered before it was, reaches Odoo."""
         if not odoo_conn.has_device_tracking:
+            self._auto_enable_device_tracking(odoo, odoo_conn)
+        if not odoo_conn.has_device_tracking:
             self._log(
                 "Odoo device tracking is off for this connection, so terminals and their "
                 "companies are not written to Odoo. Run Test Connection to re-detect it.",
@@ -1353,6 +1355,32 @@ class SyncEngine:
                 "warning",
                 ui=False,
             )
+
+    def _auto_enable_device_tracking(self, odoo: OdooClient, odoo_conn: OdooConnection) -> None:
+        """Create the device model in Odoo when this connection has none yet.
+
+        A fresh Odoo has neither the add-on nor the bootstrap model, and until
+        now the model was only created by clicking Test Connection, so a sync
+        on a new instance silently wrote no devices and no companies. Best
+        effort: needs Settings access on the Odoo user, and never fails a sync.
+        """
+        try:
+            odoo.ensure_device_tracking_bootstrap()
+            mode = odoo._device_tracking_mode()
+        except Exception as exc:  # noqa: BLE001
+            self._log(
+                f"Could not create the device model in Odoo: {exc}. The connected Odoo "
+                "user needs Settings (Administrator) access.",
+                "warning",
+                ui=False,
+            )
+            return
+        if mode is None:
+            return
+        odoo_conn.has_device_tracking = True
+        odoo_conn.device_tracking_mode = mode
+        self.db.flush()
+        self._log(f"Created Odoo device tracking ({mode}) for this connection", ui=False)
 
     def _terminal_company_id(self, device: Device) -> int | None:
         """The Odoo company this terminal belongs to: its own, else its

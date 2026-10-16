@@ -252,7 +252,6 @@ class RevalidatingStatics(StaticFiles):
 STATIC_DIR = Path(__file__).parent / "static"
 if STATIC_DIR.exists():
     app.mount("/app", RevalidatingStatics(directory=STATIC_DIR, html=True), name="dashboard")
-    app.mount("/admin", RevalidatingStatics(directory=STATIC_DIR, html=True), name="admin_dashboard",)
 
 
 @app.get("/", include_in_schema=False)

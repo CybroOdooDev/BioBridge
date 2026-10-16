@@ -148,8 +148,14 @@ python3 tools/e2e_proof.py --odoo-url https://your.odoo.com \
 
 ```bash
 source .venv/bin/activate     # or: .venv/bin/python -m pytest
-python -m pytest              # 141 tests, no skips
+python -m pytest              # ~900 tests, no skips, about 7 minutes
 ```
+
+The suite is offline and self-contained: `tests/conftest.py` refuses any
+connection or DNS lookup outside this machine (a test that tries gets an
+immediate "cannot reach" error, the same path a real outage takes), drops
+proxy settings, and gives each test process its own temporary database, so it
+never touches `./biobridge.db` and test files can run in parallel.
 
 If it reports **skips**, a dev dependency is missing. Without `pytest-asyncio`
 pytest skips every async test and still exits 0 — a green run with the entire
@@ -754,6 +760,45 @@ Two invariants make a run safe to interrupt:
   re-read window costs nothing and a full re-pull is safe.
 - The cursor advances only **after** punches are stored, and only to the newest
   punch actually seen. A crash costs a retry, never a gap.
+- A read that stops at a provider's page cap (BioTime's `MAX_PAGES_PER_RUN`,
+  and each vendor's own guard) is never trusted as complete. BioTime pages in id
+  order, not time order, so a cut-short read can leave unread punches *before*
+  the newest one it returned. The engine splits that window in half and reads
+  both halves again, down to 10-minute slices, at most 12 reads per source per
+  run; the cursor stops where the complete reading stops, and a large backlog
+  is worked off over the next runs ("large backlog — continuing next run").
+
+### Reading by record id (late uploads)
+
+The time cursor has one blind spot: a punch that reaches the platform late with
+an old timestamp (a terminal that was offline for a day uploads its backlog)
+falls before the re-read window and is never fetched. Platforms that number
+their records with an id that only grows, and can be asked for records after
+one, are also read by id:
+
+1. Every run reads by time first, exactly as above — nothing depends on the id.
+2. It then asks for everything with an id above the highest id already stored
+   (`record_cursor` in the connection's config), whatever its timestamp, back to
+   the backfill limit. Anything new there was uploaded late.
+3. The id cursor moves, with the time cursor, only after both reads are stored.
+   If new punches arrive with ids **below** the cursor, the platform restarted its
+   count (log cleared, device reset, Hikvision's counter wrapping) and the
+   cursor follows it down.
+4. A platform that rejects or ignores the id condition is marked
+   `record_cursor_unsupported` and read by time only from then on. Changing the
+   connection's address clears both keys.
+
+| Platform | Id used | How it is asked |
+|---|---|---|
+| Hikvision ISAPI terminal | event `serialNo` | `AcsEventCond.beginSerialNo` |
+| Suprema BioStar 2 | event `id` | `id` GREATER condition, ordered and paged by id |
+| Matrix COSEC | sequence + rollover | its own `cosec_cursor` (already position-based) |
+| ZKTeco BioTime | `id` | not used: the API ignores id filters and ordering (tested on a live server), so BioTime is read by time |
+| ZKTeco terminal (port 4370) | none | the log has no ids; the terminal records its own punches as they happen, so there are no late uploads to catch |
+
+Both vendor conditions are honoured by the simulated servers in the tests; they
+still need confirming on a real terminal and server. If either is ignored, step
+4 catches it on the first run.
 
 ### The one thing this gets right that a naive port does not
 

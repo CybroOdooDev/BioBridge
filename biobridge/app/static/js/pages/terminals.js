@@ -15,15 +15,11 @@ function deviceState(d, source) {
   return d.is_enabled && (!source || source.status === 'connected') ? pill('active', 'active') : pill('skipped', 'inactive');
 }
 
-/* View choices live for the browser, not the account: try/catch because storage
- * can be unavailable. */
-const VIEW = { group: 'connection' };  // always by connection for now
-
-let FOLDED = new Set();   // "<group mode>:<group id>" folded shut
+/* Which connection cards are folded shut is kept per browser, not per
+ * account: try/catch because storage can be unavailable. */
+let FOLDED = new Set();   // "connection:<source id>"
 try { FOLDED = new Set(JSON.parse(localStorage.getItem('bb.terminals.folded') || '[]')); } catch { /* none */ }
 
-const NO_COMPANY = '__none';
-const isConnected = (source) => source.status === 'connected';
 const companyOf = (device, source) => device?.company_name || source.default_company_name || null;
 const companyPill = (name) => (name ? ` <span class="pill mute">${esc(name)}</span>` : '');
 // Header line: the address as saved. The IP column drops the internal scheme
@@ -33,64 +29,30 @@ const addressOf = (source) => (source.provider === 'zk_adms'
   : source.base_url);
 const ipOf = (source) => String(source.base_url || '').replace(/^(zk|adms):\/\//i, '');
 
-/* One row per terminal, plus one for a connection that has none yet (a device
- * not reached, say) so a failed connection still shows. */
-function buildRows(sources, devicesBySource) {
-  const rows = [];
-  for (const source of sources) {
-    const devices = devicesBySource[source.id] || [];
-    if (!devices.length) rows.push({ source, device: null });
-    devices.forEach((device) => rows.push({ source, device }));
-  }
-  return rows;
-}
-
-const applyFilters = (rows) => rows;   // no filters for now: every connection and terminal shows
-
-function groupRows(rows) {
-  const groups = new Map();
-  for (const row of rows) {
-    const key = VIEW.group === 'company' ? (companyOf(row.device, row.source) ?? NO_COMPANY) : row.source.id;
-    if (!groups.has(key)) groups.set(key, { key, rows: [] });
-    groups.get(key).rows.push(row);
-  }
-  const list = [...groups.values()];
-  if (VIEW.group === 'company') {
-    list.sort((a, b) => (a.key === NO_COMPANY) - (b.key === NO_COMPANY) || a.key.localeCompare(b.key));
-  } else {
-    list.sort((a, b) => a.rows[0].source.name.localeCompare(b.rows[0].source.name));
-  }
-  return list;
-}
-
-function terminalRow({ source, device }, withConnection) {
+function terminalRow(source, device) {
   if (!device) {
+    // A connection with no terminal yet (a device not reached, say), so a
+    // failed connection still shows.
     return `<tr>
       <td>${esc(source.name)}${companyPill(source.default_company_name)}</td><td class="mono">—</td>
-      ${withConnection ? `<td>${esc(source.name)}</td>` : ''}
       <td class="mono">${esc(ipOf(source) || '—')}</td><td class="num">—</td><td>—</td>
       <td>${pill('skipped', 'inactive')}</td></tr>`;
   }
   return `<tr>
     <td>${esc(device.alias || device.serial_number)}${companyPill(companyOf(device, source))}</td>
     <td class="mono">${esc(device.serial_number)}</td>
-    ${withConnection ? `<td>${esc(source.name)}</td>` : ''}
     <td class="mono">${esc(device.ip_address || '—')}</td>
     <td class="num">${esc(device.punch_count)}</td>
     <td>${esc(device.last_seen_at ? fmtAgo(device.last_seen_at) : '—')}</td>
     <td>${deviceState(device, source)}</td></tr>`;
 }
 
-function groupCard(group) {
-  const byCompany = VIEW.group === 'company';
-  const first = group.rows[0].source;
-  const terminals = group.rows.filter((r) => r.device);
-  const foldId = `${VIEW.group}:${group.key}`;
-  const collapsible = terminals.length > 1;
+/** One card per connection; folds when it has more than one terminal. */
+function connectionCard(source, devices) {
+  const foldId = `connection:${source.id}`;
+  const collapsible = devices.length > 1;
   const folded = collapsible && FOLDED.has(foldId);
-  const title = byCompany ? (group.key === NO_COMPANY ? 'No Company Set' : group.key) : first.name;
-  const pills = byCompany ? '' : pill(first.status);
-  const sub = byCompany ? '' : `<div class="hint mono" style="margin-top:2px${collapsible ? ';margin-left:22px' : ''}">${esc(addressOf(first))}</div>`;
+  const rows = devices.length ? devices.map((d) => terminalRow(source, d)).join('') : terminalRow(source, null);
   return `
     <div class="card" style="margin-bottom:14px">
       <div class="item-head"${collapsible ? ` data-fold="${esc(foldId)}" role="button" tabindex="0"
@@ -98,17 +60,17 @@ function groupCard(group) {
         <div style="min-width:0">
           <div class="row" style="gap:8px;align-items:center">
             ${collapsible ? `<span class="chev" aria-hidden="true" style="display:inline-block;width:14px">${folded ? '▸' : '▾'}</span>` : ''}
-            <strong>${esc(title)}</strong>
-            ${pills}
-            ${collapsible ? `<span class="hint">${terminals.length} terminals</span>` : ''}
+            <strong>${esc(source.name)}</strong>
+            ${pill(source.status)}
+            ${collapsible ? `<span class="hint">${devices.length} terminals</span>` : ''}
           </div>
-          ${sub}
+          <div class="hint mono" style="margin-top:2px${collapsible ? ';margin-left:22px' : ''}">${esc(addressOf(source))}</div>
         </div>
       </div>
       <div class="scroll terminal-list" style="margin-top:12px"${folded ? ' hidden' : ''}>
         <table>
-          <thead><tr><th>Device</th><th>Serial</th>${byCompany ? '<th>Connection</th>' : ''}<th>IP</th><th class="num">Punches</th><th>Last Seen</th><th>State</th></tr></thead>
-          <tbody>${group.rows.map((r) => terminalRow(r, byCompany)).join('')}</tbody>
+          <thead><tr><th>Device</th><th>Serial</th><th>IP</th><th class="num">Punches</th><th>Last Seen</th><th>State</th></tr></thead>
+          <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
@@ -132,7 +94,7 @@ export async function renderTerminals(mount) {
     return;
   }
 
-  const all = buildRows(sources, devicesBySource);
+  const ordered = [...sources].sort((x, y) => x.name.localeCompare(y.name));
 
   mount.innerHTML = `
     <div class="page-bar">
@@ -144,15 +106,12 @@ export async function renderTerminals(mount) {
     <div id="tList"></div>`;
 
   const paint = () => {
-    const rows = applyFilters(all);
-    const terminals = rows.filter((r) => r.device).length;
-    const conns = new Set(rows.map((r) => r.source.id)).size;
+    const terminals = devices.filter((d) => devicesBySource[d.source_id]).length;
+    const conns = ordered.length;
     mount.querySelector('#tCount').textContent =
       `${terminals} terminal${terminals === 1 ? '' : 's'} across ${conns} connection${conns === 1 ? '' : 's'}`;
     const list = mount.querySelector('#tList');
-    list.innerHTML = rows.length
-      ? groupRows(rows).map(groupCard).join('')
-      : `<div class="card">${empty('No Terminals Match', 'Add a connection in Settings to see its terminals.')}</div>`;
+    list.innerHTML = ordered.map((source) => connectionCard(source, devicesBySource[source.id] || [])).join('');
 
     list.querySelectorAll('[data-fold]').forEach((head) => {
       const toggle = () => {

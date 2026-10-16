@@ -53,7 +53,6 @@ from app.services.onboarding import (
     consume_signin_code,
     issue_signin_code,
     send_account_ready,
-    send_credentials,
 )
 from app.services import password_reset
 from app.services.timeutils import ensure_aware, is_past

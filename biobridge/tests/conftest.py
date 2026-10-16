@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+
+# Before anything imports app.core.config: the app's own start-up (create_all
+# on settings.database_url) must never touch ./biobridge.db in the project, and
+# parallel runs must not share one file. Each test process gets its own.
+os.environ["DATABASE_URL"] = (
+    "sqlite:///" + os.path.join(tempfile.mkdtemp(prefix="bb-tests-"), "app.db")
+)
+
+# A proxy in the environment would carry requests to outside hosts through a
+# local port, past the network guard below. Tests never need one.
+for _var in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy", "all_proxy"):
+    os.environ.pop(_var, None)
+
 import importlib.util
+import ipaddress
+import socket
 from datetime import datetime, timedelta
 
 import pytest
@@ -31,6 +48,77 @@ def pytest_configure(config):
             "be SKIPPED and this run would still report success.\n"
             "    pip install -r requirements-dev.txt"
         )
+
+# --------------------------------------------------------------------------- #
+# No network: a test may talk to servers it starts on this machine, nothing
+# else. A test that tries (an Odoo URL like acme.odoo.com in a fixture) gets an
+# immediate OSError — the same "cannot reach" path a real outage takes — rather
+# than waiting on DNS or a proxy, so the suite is fast and gives the same result
+# with or without internet access.
+# --------------------------------------------------------------------------- #
+_LOCAL_NAMES = {"localhost", "localhost.localdomain", "testserver", ""}
+
+
+def _is_local(host) -> bool:
+    if host is None:
+        return True
+    host = host.decode() if isinstance(host, bytes) else str(host)
+    host = host.strip("[]").lower()
+    if host in _LOCAL_NAMES or host.endswith(".localhost"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_unspecified
+
+
+class NetworkBlocked(OSError):
+    pass
+
+
+_real_getaddrinfo = socket.getaddrinfo
+_real_connect = socket.socket.connect
+_real_connect_ex = socket.socket.connect_ex
+
+
+def _is_ip_literal(host) -> bool:
+    try:
+        ipaddress.ip_address((host.decode() if isinstance(host, bytes) else str(host)).strip("[]"))
+        return True
+    except ValueError:
+        return False
+
+
+def _guard_getaddrinfo(host, *args, **kwargs):
+    # An IP literal resolves without any lookup; only a name needs DNS.
+    if not _is_local(host) and not _is_ip_literal(host):
+        raise socket.gaierror(socket.EAI_NONAME, f"network disabled in tests ({host})")
+    return _real_getaddrinfo(host, *args, **kwargs)
+
+
+def _target_host(address):
+    if isinstance(address, tuple) and address:
+        return address[0]
+    return None  # AF_UNIX path
+
+
+def _guard_connect(self, address):
+    if not _is_local(_target_host(address)):
+        raise NetworkBlocked(f"network disabled in tests ({address!r})")
+    return _real_connect(self, address)
+
+
+def _guard_connect_ex(self, address):
+    if not _is_local(_target_host(address)):
+        raise NetworkBlocked(f"network disabled in tests ({address!r})")
+    return _real_connect_ex(self, address)
+
+
+socket.getaddrinfo = _guard_getaddrinfo
+socket.socket.connect = _guard_connect
+socket.socket.connect_ex = _guard_connect_ex
+
 
 TZ = "Asia/Dubai"  # UTC+4, no DST, so the offset arithmetic is checkable by eye
 

@@ -1169,7 +1169,6 @@ function companyFieldHtml(odoo, companies, off) {
 let editingSourceId = null;
 let confirmDeleteId = null; // a source id pending removal confirmation
 
-const PROVIDER_LABEL = { zk_device: 'ZKTeco protocol', zk_adms: 'Cloud push', hik_isapi: 'Hikvision', biostar2: 'Suprema BioStar 2', cosec: 'Matrix COSEC', cosec_centra: 'COSEC CENTRA', crosschex: 'Anviz CrossChex', hikconnect: 'Hik-Connect', hikcentral: 'HikCentral', cams: 'Cams biometrics', dahua: 'Dahua' };
 /** Which direct-device protocol is offered first. */
 const DIRECT_ORDER = { zk_device: 0, hik_isapi: 1, dahua: 2, cosec: 3, cams: 4, biotime: 0, biostar2: 1, hikcentral: 2, hikconnect: 3, cosec_centra: 4, crosschex: 5 };
 /** Where push devices send to — from /providers (setup), for the forms. */

@@ -236,6 +236,7 @@ class HikCentralProvider(AttendanceProvider):
             total = int(data.get("total") or 0)
             if not rows or len(rows) < PAGE_SIZE or (total and page * PAGE_SIZE >= total):
                 return
+        self.truncated = True   # the window was not read to its end
         log.warning("HikCentral %s: stopped paging after %d pages", self.host, MAX_PAGES)
 
     # -- interface -----------------------------------------------------------

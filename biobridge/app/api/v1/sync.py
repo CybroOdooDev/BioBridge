@@ -71,7 +71,6 @@ def get_tenant(principal: Principal = Depends(get_principal)) -> Tenant:
 
 
 def _sync_stripe_price(db: Session, tenant: Tenant, plan_id: str | None) -> None:
-    from app.core.config import settings
     from app.services import billing
 
     billing.load_config(db)

@@ -335,6 +335,7 @@ class BioTimeProvider(AttendanceProvider):
                 return
             page += 1
 
+        self.truncated = True   # the window was not read to its end
         log.warning(
             "BioTime %s: hit max_pages=%s; the rest follows on the next run.",
             path, settings.max_pages_per_run,

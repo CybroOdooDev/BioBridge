@@ -224,4 +224,5 @@ class CrossChexProvider(AttendanceProvider):
             if not rows or page >= pages or len(rows) < PAGE_SIZE:
                 return
             page += 1
+        self.truncated = True   # the window was not read to its end
         log.warning("CrossChex %s: stopped paging after %d pages", self.base, MAX_PAGES)

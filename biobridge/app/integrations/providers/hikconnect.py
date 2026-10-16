@@ -299,4 +299,5 @@ class HikConnectProvider(AttendanceProvider):
             if not rows or len(rows) < PAGE_SIZE or (total and page * PAGE_SIZE >= total):
                 return
             page += 1
+        self.truncated = True   # the window was not read to its end
         log.warning("Hik-Connect %s: stopped paging after %d pages", self.base, MAX_PAGES)

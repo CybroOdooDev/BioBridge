@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.integrations.base import Capability, get_provider_class
 from app.integrations.odoo import MATCH_FIELDS, OdooClient, OdooError
 from app.models import DeviceSource, EmployeeMapping, MappingStatus, OdooConnection, Tenant
-from app.services.connections import UnsafeTargetError, build_odoo_client, build_source_provider
+from app.services.connections import build_odoo_client, build_source_provider
 
 log = logging.getLogger(__name__)
 

@@ -37,7 +37,6 @@ from app.schemas import (
     DeviceOut,
     DeviceUpdate,
     SourceCompanyIn,
-    MessageOut,
     OdooConnectionIn,
     OdooConnectionOut,
     OdooConnectionTestIn,
@@ -735,9 +734,12 @@ def update_source(
     if data.get("base_url"):
         _refuse_duplicate_address(db, principal, data["base_url"], except_id=source.id,
                                   provider=source.provider, username=data.get("username", source.username))
-        if data["base_url"] != source.base_url and "cosec_cursor" in (source.config or {}):
-            # A different device's log starts from its own beginning.
-            source.config = {k: v for k, v in (source.config or {}).items() if k != "cosec_cursor"}
+        if data["base_url"] != source.base_url:
+            # A different device's log starts from its own beginning, and may
+            # answer an "after record id" query where the old one could not.
+            stale = {"cosec_cursor", "record_cursor", "record_cursor_unsupported"}
+            if stale & set(source.config or {}):
+                source.config = {k: v for k, v in (source.config or {}).items() if k not in stale}
         if source.provider == adms.PROVIDER_SLUG and data["base_url"] != source.base_url:
             try:
                 adms.release(db, source)

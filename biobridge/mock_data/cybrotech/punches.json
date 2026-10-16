@@ -1228,5 +1228,495 @@
     "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
     "first_name": "",
     "last_name": ""
+  },
+  {
+    "id": 1792139109,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 13:55:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792139409,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 14:00:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792139709,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 14:05:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792140009,
+    "emp_code": "80003",
+    "punch_time": "2026-10-16 14:10:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792140309,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 14:15:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792140609,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 14:20:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792140909,
+    "emp_code": "80003",
+    "punch_time": "2026-10-16 14:25:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792141209,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 14:30:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792141509,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 14:35:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792141809,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 14:40:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792142109,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 14:45:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792142409,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 14:50:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792142709,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 14:55:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792143009,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 15:00:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792143309,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 15:05:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792143609,
+    "emp_code": "40005",
+    "punch_time": "2026-10-16 15:10:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792143909,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 15:15:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792144209,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 15:20:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792144509,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 15:25:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792144809,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 15:30:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792145109,
+    "emp_code": "40005",
+    "punch_time": "2026-10-16 15:35:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792145409,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 15:40:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792145709,
+    "emp_code": "40005",
+    "punch_time": "2026-10-16 15:45:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792146009,
+    "emp_code": "40005",
+    "punch_time": "2026-10-16 15:50:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792146309,
+    "emp_code": "80003",
+    "punch_time": "2026-10-16 15:55:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792146609,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 16:00:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792146909,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 16:05:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792147209,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 16:10:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792147509,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 16:15:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792147809,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 16:20:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792148109,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 16:25:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792148409,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 16:30:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792148709,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 16:35:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792149009,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 16:40:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792149309,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 16:45:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792149609,
+    "emp_code": "40005",
+    "punch_time": "2026-10-16 16:50:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792149909,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 16:55:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792150209,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 17:00:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792150509,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 17:05:09",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792150809,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 17:10:09",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792151110,
+    "emp_code": "40006",
+    "punch_time": "2026-10-16 17:15:10",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792151410,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 17:20:10",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792151710,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 17:25:10",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792152010,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 17:30:10",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792152310,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 17:35:10",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792152610,
+    "emp_code": "40004",
+    "punch_time": "2026-10-16 17:40:10",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C2-GATE-01",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792152910,
+    "emp_code": "80003",
+    "punch_time": "2026-10-16 17:45:10",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792153210,
+    "emp_code": "80001",
+    "punch_time": "2026-10-16 17:50:10",
+    "punch_state": "1",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-02",
+    "first_name": "",
+    "last_name": ""
+  },
+  {
+    "id": 1792153510,
+    "emp_code": "80002",
+    "punch_time": "2026-10-16 17:55:10",
+    "punch_state": "0",
+    "verify_type": "15",
+    "terminal_sn": "MOCK-CYBROTECH-C1-GATE-01",
+    "first_name": "",
+    "last_name": ""
   }
 ]

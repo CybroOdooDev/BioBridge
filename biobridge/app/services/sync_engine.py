@@ -31,7 +31,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.crypto import encrypt
-from app.integrations.base import Capability, EmployeeRecord, ProviderError, UnsupportedCapability
+from app.integrations.base import (
+    Capability, EmployeeRecord, IdFilterUnsupported, ProviderError, UnsupportedCapability,
+)
 from app.integrations.odoo import OdooClient, OdooError, parse_dt
 from app.models import (
     AttendanceRecord,
@@ -81,6 +83,15 @@ log = logging.getLogger(__name__)
 #: enough that the round trips are few, small enough that the IN list stays an
 #: index seek and the buffer stays negligible.
 INGEST_BATCH = 500
+
+#: DeviceSource.config keys of the record-id cursor (see _record_cursor).
+RECORD_CURSOR_KEY = "record_cursor"
+RECORD_CURSOR_OFF = "record_cursor_unsupported"
+
+#: Reading a window whose read was cut short by a page cap (see _read_by_time):
+#: at most this many reads per source per run, slices never under MIN_SLICE.
+MAX_SLICE_READS = 12
+MIN_SLICE = timedelta(minutes=10)
 
 #: Bound parameters per lookup. SQLite's older default ceiling is 999.
 ID_LOOKUP_CHUNK = 500
@@ -365,13 +376,26 @@ class SyncEngine:
             return
         newest = source.cursor_punch_time
         fetched = created = 0
+        by_id = self._record_cursor(source, provider)
+        top_id: int | None = None          # highest record id stored this run
+        time_pass_top: int | None = None   # ... by the time-window read alone
+        time_pass_created = 0
+        seen_external: set[str] = set()
 
-        try:
+        def consume(events) -> int:
+            """Ingest one read's events; returns how many were new."""
+            nonlocal fetched, newest, top_id
+            made = 0
             # Buffered, so the "have we seen this already?" check can be asked
             # about the handful of punches in hand rather than the whole ledger.
             batch: list[tuple[object, datetime]] = []
-            for event in provider.fetch_punches(since=start_local, until=end_local):
+            for event in events:
+                if event.external_id in seen_external:
+                    continue  # already read by the other pass of this run
+                seen_external.add(event.external_id)
                 fetched += 1
+                if event.record_id is not None and (top_id is None or event.record_id > top_id):
+                    top_id = event.record_id
 
                 # A terminal the customer explicitly disabled is skipped, but an
                 # unknown one is kept: a device that appeared since the last
@@ -389,11 +413,48 @@ class SyncEngine:
 
                 batch.append((event, punch_utc))
                 if len(batch) >= INGEST_BATCH:
-                    created += self._ingest_batch(batch, source, devices)
+                    made += self._ingest_batch(batch, source, devices)
                     batch = []
 
             if batch:
-                created += self._ingest_batch(batch, source, devices)
+                made += self._ingest_batch(batch, source, devices)
+            return made
+
+        try:
+            # 1. By time: always, so nothing ever depends on the id cursor alone.
+            time_pass_created, read_until = self._read_by_time(provider, consume, start_utc, end_utc, tz)
+            time_pass_top = top_id
+            created += time_pass_created
+            if read_until < end_utc:
+                # Only part of the window fit in this run's page budget. The
+                # cursor stops where the complete reading stops, so the rest
+                # is read next run instead of being stepped over.
+                if newest is not None and newest > read_until:
+                    newest = read_until
+                self._log(f"'{source.name}': large backlog — read up to "
+                          f"{utc_to_local(read_until, tz)}, continuing next run", "warning")
+
+            # 2. By record id: whatever the platform stored after the last
+            # record we have, whatever its timestamp — the punch an offline
+            # terminal uploads hours later with an old time.
+            if by_id is not None:
+                try:
+                    provider.truncated = False
+                    late = consume(provider.fetch_punches_after(
+                        by_id, since=utc_to_local(floor, tz), until=end_local))
+                    if provider.truncated:
+                        # Not read to the end, and not necessarily in id order:
+                        # keep the id cursor where it was rather than skip ids.
+                        top_id = max(x for x in (time_pass_top, by_id) if x is not None)
+                except IdFilterUnsupported as exc:
+                    late = 0
+                    source.config = {**(source.config or {}), RECORD_CURSOR_OFF: True}
+                    self._log(f"'{source.name}': reading by record id is not supported here "
+                              f"({exc}); reading by time only", "warning", ui=False)
+                created += late
+                if late:
+                    self._log(f"'{source.name}': {late} punch(es) found by record id "
+                              "outside the time window (uploaded late)")
 
             cached = getattr(provider, "cached_token", None)
             if cached:
@@ -414,6 +475,8 @@ class SyncEngine:
             # — which the unique index makes free.
             if newest:
                 source.cursor_punch_time = newest
+            if getattr(provider, "record_id_cursor", False):
+                self._advance_record_cursor(source, by_id, top_id, time_pass_top, time_pass_created)
         finally:
             provider.close()
 
@@ -421,6 +484,80 @@ class SyncEngine:
         self.run.punches_fetched += fetched
         self.run.punches_new += created
         self._log(f"'{source.name}': {fetched} punch(es) seen, {created} new")
+
+    # -- reading a window by time ------------------------------------------
+    def _read_by_time(self, provider, consume, start_utc: datetime, end_utc: datetime, tz: str):
+        """Read [start, end] by time, slice by slice, oldest first.
+
+        A provider that hit its page cap on a slice (``truncated``) may have
+        left punches anywhere in it — BioTime, for one, pages in id order, not
+        time order — so that slice is split in two and both halves are read
+        again. Returns (new punches, read_until): everything before
+        ``read_until`` was read completely. Bounded per run, so a huge backlog
+        is worked off over several runs, each picking up where the last one's
+        complete reading stopped.
+        """
+        created = 0
+        slices = [(start_utc, end_utc)]
+        read_until = start_utc
+        reads = 0
+        while slices:
+            if reads >= MAX_SLICE_READS:
+                return created, read_until
+            lo, hi = slices.pop(0)
+            reads += 1
+            provider.truncated = False
+            created += consume(provider.fetch_punches(
+                since=utc_to_local(lo, tz), until=utc_to_local(hi, tz)))
+            if provider.truncated and hi - lo > MIN_SLICE:
+                mid = lo + (hi - lo) / 2
+                slices[:0] = [(lo, mid), (mid, hi)]
+                continue
+            if provider.truncated:
+                self._log(f"More punches than one read can hold between "
+                          f"{utc_to_local(lo, tz)} and {utc_to_local(hi, tz)}; "
+                          "some may be missing — raise MAX_PAGES_PER_RUN", "warning")
+            read_until = hi
+        return created, read_until
+
+    # -- record-id cursor --------------------------------------------------
+    @staticmethod
+    def _record_cursor(source: DeviceSource, provider) -> int | None:
+        """The last record id stored for this source, when its platform can
+        be read by id and hasn't been found to ignore that."""
+        if not getattr(provider, "record_id_cursor", False):
+            return None
+        config = source.config or {}
+        if config.get(RECORD_CURSOR_OFF):
+            return None
+        value = config.get(RECORD_CURSOR_KEY)
+        return int(value) if isinstance(value, int) or str(value or "").isdigit() else None
+
+    def _advance_record_cursor(
+        self, source: DeviceSource, old: int | None, top: int | None,
+        time_top: int | None, time_created: int,
+    ) -> None:
+        """Move the id cursor to the highest record id stored this run.
+
+        Ids only grow, so a *new* punch whose id is below the cursor means the
+        platform started counting again (log cleared, device replaced or
+        reset): the cursor follows it down rather than waiting, possibly for
+        ever, for ids to climb past the old value.
+        """
+        if top is None:
+            return
+        config = dict(source.config or {})
+        current = config.get(RECORD_CURSOR_KEY)
+        current = int(current) if str(current or "").isdigit() else old
+        if current is not None and time_created and time_top is not None and time_top < current:
+            self._log(f"'{source.name}': record ids restarted (now {time_top}, was {current}); "
+                      "following the new sequence", "warning", ui=False)
+            config[RECORD_CURSOR_KEY] = time_top
+        elif current is None or top > current:
+            config[RECORD_CURSOR_KEY] = top
+        else:
+            return
+        source.config = config
 
     def _claim_pushed(self, source: DeviceSource, provider) -> None:
         """A push device's punches are already in the ledger — they were
@@ -450,7 +587,9 @@ class SyncEngine:
         self.db.flush()
         self.run.punches_fetched += created
         self.run.punches_new += created
-        log.warning("ADMS health diagnostic: provider=%s ok=%s message=%r", type(provider).__name__, health.ok, health.message,)
+        self._log(f"'{source.name}': {created} pushed punch(es) since the last run"
+                  + ("" if health.ok else f" — {health.message}"),
+                  "info" if health.ok else "warning")
 
     def _known_external_ids(
         self, source: DeviceSource, external_ids: Collection[str]

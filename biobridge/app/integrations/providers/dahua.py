@@ -249,6 +249,7 @@ class DahuaProvider(AttendanceProvider):
                 return
             # More than one page: continue from the last record's time (inclusive).
             cursor = last if (last > cursor or fresh) else last + timedelta(seconds=1)
+        self.truncated = True   # the window was not read to its end
         log.warning("Dahua %s: stopped paging after %d pages", self.host, MAX_PAGES)
 
     # -- interface -----------------------------------------------------------

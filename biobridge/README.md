@@ -793,8 +793,23 @@ one, are also read by id:
 | Hikvision ISAPI terminal | event `serialNo` | `AcsEventCond.beginSerialNo` |
 | Suprema BioStar 2 | event `id` | `id` GREATER condition, ordered and paged by id |
 | Matrix COSEC | sequence + rollover | its own `cosec_cursor` (already position-based) |
-| ZKTeco BioTime | `id` | not used: the API ignores id filters and ordering (tested on a live server), so BioTime is read by time |
+| ZKTeco BioTime | transaction `id`, `upload_time` | see below |
 | ZKTeco terminal (port 4370) | none | the log has no ids; the terminal records its own punches as they happen, so there are no late uploads to catch |
+
+**BioTime.** Its transaction list ignores id filters and ordering (tested on a
+live server), but it does take `upload_time`, and one transaction can be read by
+id. Two reads cover late uploads:
+
+- *By upload time.* The live window is also asked `?upload_time=<window start>`.
+  What comes back is checked: a server that filters "from that time on" is
+  remembered as `biotime_upload_filter: from`; one that ignores the value, or
+  matches it exactly, as `off` and is not asked again.
+- *By id gaps.* BioTime numbers transactions as it receives them, so an id
+  between two the time read returned, but missing from it, is a transaction
+  with a punch time outside the window — a late upload (or a deleted one). Each
+  gap is read on its own (`/iclock/api/transactions/<id>/`), then the ids past the
+  newest until one does not exist. At most 200 lookups per run; the id cursor
+  stops where the lookups stopped.
 
 Both vendor conditions are honoured by the simulated servers in the tests; they
 still need confirming on a real terminal and server. If either is ignored, step

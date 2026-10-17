@@ -437,7 +437,7 @@ class SyncEngine:
             # 2. By record id: whatever the platform stored after the last
             # record we have, whatever its timestamp — the punch an offline
             # terminal uploads hours later with an old time.
-            if by_id is not None:
+            if by_id is not None and read_until >= end_utc:   # a backlog run reads by time only
                 try:
                     provider.truncated = False
                     late = consume(provider.fetch_punches_after(
@@ -446,6 +446,11 @@ class SyncEngine:
                         # Not read to the end, and not necessarily in id order:
                         # keep the id cursor where it was rather than skip ids.
                         top_id = max(x for x in (time_pass_top, by_id) if x is not None)
+                    # A provider that checks ids one by one may stop part-way;
+                    # the cursor goes no further than it checked.
+                    reached = getattr(provider, "record_cursor_until", None)
+                    if isinstance(reached, int) and top_id is not None and top_id > reached:
+                        top_id = max(reached, by_id)
                 except IdFilterUnsupported as exc:
                     late = 0
                     source.config = {**(source.config or {}), RECORD_CURSOR_OFF: True}

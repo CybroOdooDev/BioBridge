@@ -40,6 +40,7 @@ nothing. Where the roster comes from (Odoo login, cache, built-in fixtures for
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import os
 import random
@@ -420,6 +421,21 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/iclock/api/terminals/":
             return self._json(self._page([_public(t) for t in TERMINALS], query, path))
 
+        one = re.fullmatch(r"/iclock/api/transactions/(\d+)/", path)
+        if one:
+            row = next((r for r in _punches() if str(r.get("id")) == one.group(1)), None)
+            if row is None:
+                return self._json({"detail": "Not found."}, 404)
+            return self._json({**row, "upload_time": row.get("upload_time") or row["punch_time"]})
+
+        detail = re.fullmatch(r"/iclock/api/transactions/(\d+)/", path)
+        if detail:
+            # One transaction by id, as BioTime serves it; 404 once deleted.
+            row = next((r for r in _punches() if str(r.get("id")) == detail.group(1)), None)
+            if row is None:
+                return self._json({"detail": "Not found."}, 404)
+            return self._json({**row, "upload_time": row.get("upload_time") or row["punch_time"]})
+
         if path == "/iclock/api/transactions/":
             rows = _punches()
             emp_code = query.get("emp_code", [None])[0]
@@ -432,6 +448,13 @@ class Handler(BaseHTTPRequestHandler):
                 rows = [r for r in rows if r["punch_time"] >= start]
             if end:
                 rows = [r for r in rows if r["punch_time"] <= end]
+            # upload_time: when the server received the punch (a terminal that
+            # was offline uploads later than it punched). Served as "from that
+            # time on"; a row without one was received as it was punched.
+            uploaded = query.get("upload_time", [None])[0]
+            rows = [{**r, "upload_time": r.get("upload_time") or r["punch_time"]} for r in rows]
+            if uploaded:
+                rows = [r for r in rows if r["upload_time"] >= uploaded]
             rows = sorted(rows, key=lambda r: (r["punch_time"], r["id"]))
             return self._json(self._page(rows, query, path))
 
